@@ -1,0 +1,25 @@
+# Ignore all files.
+*
+
+# Always ignore these directories ...
+.idea/
+.vs/
+.vscode/
+bin/
+lib/
+debug/
+
+# ... but not these files...
+!CMakeLists.txt
+!/.git*
+!*.c
+!*.cpp
+!*.h
+!*.hpp
+!*.ico
+!*.md
+!*.res
+!bin/*.hlsl
+
+# ... even if they are in subdirectories
+!*/
