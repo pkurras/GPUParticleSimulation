@@ -7,6 +7,8 @@ This is a particle simulation based on the Verlet algorithm.
 [![GitHub code size in bytes][shield_size]](https://github.com/truepaddii/GPUParticleSimulation)
 [![Discord][shield_discord]](http://discord.gg/8wX5svG/)
 
+[![YouTube Video](https://img.youtube.com/vi/rkL4kz1XaIo/0.jpg)](https://www.youtube.com/watch?v=rkL4kz1XaIo)
+
 ## Supported Platforms
 
 Currently following platforms are supported:
