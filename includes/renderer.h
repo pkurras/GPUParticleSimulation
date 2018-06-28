@@ -74,7 +74,7 @@ public:
 		ZeroMemory(&bufferInitData, sizeof(bufferInitData));
 		bufferInitData.pSysMem = pInitialData;
 
-		V_RETURN(this->device->CreateBuffer(&bufferDesc, (pInitialData) ? &bufferInitData : NULL, ppBuffer));
+		V_RETURN(this->pDevice->CreateBuffer(&bufferDesc, (pInitialData) ? &bufferInitData : NULL, ppBuffer));
 
 		V_RETURN(this->CreateShaderResourceView(ppBuffer, iNumElements, ppSRV));
 		V_RETURN(this->CreateUnorderedAccessView(ppBuffer, iNumElements, ppUAV));
@@ -148,7 +148,7 @@ public:
 		desc.MiscFlags		= 0;
 		desc.ByteWidth		= sizeof(T);
 
-		V_RETURN(this->device->CreateBuffer(&desc, NULL, ppBuffer));
+		V_RETURN(this->pDevice->CreateBuffer(&desc, NULL, ppBuffer));
 
 		return hr;
 	}
@@ -185,7 +185,7 @@ public:
 		initData.SysMemPitch = 0;
 		initData.SysMemSlicePitch = 0;
 
-		V_RETURN(this->device->CreateBuffer(&bufferDesc, &initData, ppBuffer));
+		V_RETURN(this->pDevice->CreateBuffer(&bufferDesc, &initData, ppBuffer));
 
 		return hr;
 	}
@@ -220,13 +220,20 @@ public:
 	 */
 	HRESULT CompileShaderFromFile(const char* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 
+	void EnumerateAdapters(void);
+
 protected:
 
 	uint64 handle;
-	IDXGISwapChain* swapChain;
-	ID3D11Device* device;
-	ID3D11DeviceContext* context;
-	ID3D11RenderTargetView* backbuffer;
-	ID3D11DepthStencilView* depthBuffer;
+
+	IDXGIFactory1* pIDXGIFactory;
+	IDXGIAdapter1** ppAdapters;
+	IDXGIOutput** ppOutputs;
+	IDXGISwapChain* pIDXGISwapChain;
+
+	ID3D11Device* pDevice;
+	ID3D11DeviceContext* pContext;
+	ID3D11RenderTargetView* pBackbuffer;
+	ID3D11DepthStencilView* pDepthBuffer;
 
 };

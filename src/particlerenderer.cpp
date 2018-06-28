@@ -7,10 +7,10 @@
 
 #define THREAD_NUM_X 512
 
-ID3D11ShaderResourceView* g_nullSRV = nullptr;
-ID3D11UnorderedAccessView* g_nullUAV = nullptr;
-ID3D11Buffer* g_nullBuffer = nullptr;
-uint32 g_nullUINT = 0;
+ID3D11ShaderResourceView* gNullSRV = nullptr;
+ID3D11UnorderedAccessView* gNullUAV = nullptr;
+ID3D11Buffer* gNullBuffer = nullptr;
+uint32 gNullUINT = 0;
 
 ParticleRenderer::SimulationConstants simulationData = { 0 };
 
@@ -152,42 +152,42 @@ void ParticleRenderer::UpdateParticles(float deltaTime)
 	/* simulationData.gravitySource = Math::Vec2{ (sin(accumulatedTime) * 0.1f), (cos(accumulatedTime) * 0.1f) }; */
 	simulationData.timestep = deltaTime;
 
-	this->context->UpdateSubresource(this->pSimulationBuffer, 0, NULL, &simulationData, 0, 0);
+	this->pContext->UpdateSubresource(this->pSimulationBuffer, 0, NULL, &simulationData, 0, 0);
 
 	// Setup of the compute shader
-	this->context->CSSetShader(this->pParticleSimulationCS, NULL, 0);
-	this->context->CSSetConstantBuffers(0, 1, &this->pSimulationBuffer);
+	this->pContext->CSSetShader(this->pParticleSimulationCS, NULL, 0);
+	this->pContext->CSSetConstantBuffers(0, 1, &this->pSimulationBuffer);
 
-	this->context->CSSetUnorderedAccessViews(0, 1, &this->pCurrentSimulationStateUAV, &UAVInitialCounts);
+	this->pContext->CSSetUnorderedAccessViews(0, 1, &this->pCurrentSimulationStateUAV, &UAVInitialCounts);
 	// this->context->CSSetUnorderedAccessViews(0, 1, &this->pNextSimulationStateUAV, &UAVInitialCounts);
 
 	// dispatch the compute command
-	this->context->Dispatch(static_cast<uint>(this->numMaxParticles), 1, 1);
+	this->pContext->Dispatch(static_cast<uint>(this->numMaxParticles), 1, 1);
 	// this->context->Dispatch(1, 1, 1);
 
 	// Unset the views
-	this->context->CSSetShader(nullptr, nullptr, 0);
-	this->context->CSSetUnorderedAccessViews(0, 1, &g_nullUAV, &UAVInitialCounts);
+	this->pContext->CSSetShader(nullptr, nullptr, 0);
+	this->pContext->CSSetUnorderedAccessViews(0, 1, &gNullUAV, &UAVInitialCounts);
 	// this->context->CSSetUnorderedAccessViews(1, 1, &g_nullUAV, &UAVInitialCounts);
 }
 void ParticleRenderer::RenderParticles(float deltaTime)
 {
 	// Set vertex and pixel shader
-	this->context->VSSetShader(this->pParticleVS, NULL, 0);
-	this->context->PSSetShader(this->pParticlePS, NULL, 0);
+	this->pContext->VSSetShader(this->pParticleVS, NULL, 0);
+	this->pContext->PSSetShader(this->pParticlePS, NULL, 0);
 
 	// More pipeline settings
-	this->context->VSSetShaderResources(0, 1, &this->pCurrentSimulationStateSRV);
-	this->context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+	this->pContext->VSSetShaderResources(0, 1, &this->pCurrentSimulationStateSRV);
+	this->pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 
 	// this->context->Draw(static_cast<uint>(this->numParticles), 0);
-	this->context->DrawInstancedIndirect(pIndirectDrawBuffer, 0);
+	this->pContext->DrawInstancedIndirect(pIndirectDrawBuffer, 0);
 
 	// Unset the views
 	//this->context->IASetVertexBuffers(0, 1, &g_nullBuffer, &g_nullUINT, 0);
-	this->context->VSSetShaderResources(0, 1, &g_nullSRV);
-	this->context->VSSetShader(nullptr, NULL, 0);
-	this->context->PSSetShader(nullptr, NULL, 0);
+	this->pContext->VSSetShaderResources(0, 1, &gNullSRV);
+	this->pContext->VSSetShader(nullptr, NULL, 0);
+	this->pContext->PSSetShader(nullptr, NULL, 0);
 }
 
 HRESULT ParticleRenderer::CompileShaders()
@@ -197,15 +197,15 @@ HRESULT ParticleRenderer::CompileShaders()
 
 	// Compile Shaders from file
 	V_RETURN(this->CompileShaderFromFile("ParticleRendering.hlsl", "ParticleVS", "vs_4_0", &pBlob));
-	V_RETURN(this->device->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), NULL, &this->pParticleVS));
+	V_RETURN(this->pDevice->CreateVertexShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), NULL, &this->pParticleVS));
 	SAFE_RELEASE(pBlob);
 
 	V_RETURN(CompileShaderFromFile("ParticleRendering.hlsl", "ParticlePS", "ps_4_0", &pBlob));
-	V_RETURN(this->device->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), NULL, &this->pParticlePS));
+	V_RETURN(this->pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), NULL, &this->pParticlePS));
 	SAFE_RELEASE(pBlob);
 
 	V_RETURN(CompileShaderFromFile("ParticleSimulation.hlsl", "IntegrateCS", "cs_4_0", &pBlob));
-	V_RETURN(this->device->CreateComputeShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), NULL, &this->pParticleSimulationCS));
+	V_RETURN(this->pDevice->CreateComputeShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), NULL, &this->pParticleSimulationCS));
 	SAFE_RELEASE(pBlob);
 
 	/*V_RETURN(CompileShaderFromFile("ParticleCreation.hlsl", "CreateParticleCS", "cs_5_0", &pBlob));

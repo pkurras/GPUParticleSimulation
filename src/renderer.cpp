@@ -8,25 +8,34 @@
 #include "renderer.h"
 #include "types.h"
 
+#pragma warning(push)
+#pragma warning(disable:4996)
+
 constexpr float clearColor[4] = { 0.0f, 0.03f, 0.06f, 1.0f };
 
 Renderer::Renderer() :
-	swapChain(nullptr),
-	device(nullptr),
-	context(nullptr)
+	pIDXGIFactory(nullptr),
+	ppAdapters(nullptr),
+	pIDXGISwapChain(nullptr),
+	pDevice(nullptr),
+	pContext(nullptr),
+	pBackbuffer(nullptr),
+	pDepthBuffer(nullptr)
 { }
 Renderer::~Renderer()
 {
 	// Clean up all the renderer vars
-	LOG("Removing Swapchain");
-	SAFE_RELEASE(this->swapChain);
-	LOG("Removing Device");
-	SAFE_RELEASE(this->device);
-	LOG("Removing DeviceContext");
-	SAFE_RELEASE(this->context);
+	LOG("Removing IDXGIAdapters");
+	free(this->ppAdapters);
+	LOG("Removing IDXGISwapChain");
+	SAFE_RELEASE(this->pIDXGISwapChain);
+	LOG("Removing D3D11Device");
+	SAFE_RELEASE(this->pDevice);
+	LOG("Removing D3D11DeviceContext");
+	SAFE_RELEASE(this->pContext);
 	LOG("Removing Buffers");
-	SAFE_RELEASE(this->backbuffer);
-	SAFE_RELEASE(this->depthBuffer);
+	SAFE_RELEASE(this->pBackbuffer);
+	SAFE_RELEASE(this->pDepthBuffer);
 }
 
 HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
@@ -34,6 +43,27 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 	HRESULT hr;
 
 	this->handle = handle;
+
+	// Create a DXGIFactory Interface so that we can create a swapchain.
+	V_RETURN(CreateDXGIFactory1(__uuidof(IDXGIFactory), (void **)&this->pIDXGIFactory));
+
+	this->EnumerateAdapters();
+
+	// Create the device and device context
+	// Debug layer might be active for testing purpose
+	// FIXME: Turn off the debug layer
+	V_RETURN(D3D11CreateDevice(
+		this->ppAdapters[0],
+		D3D_DRIVER_TYPE::D3D_DRIVER_TYPE_UNKNOWN,
+		NULL,
+		D3D11_CREATE_DEVICE_DEBUG,
+		NULL,
+		NULL,
+		D3D11_SDK_VERSION,
+		&this->pDevice,
+		NULL,
+		&this->pContext
+	));
 
 	// Settings for the SwapChain
 	DXGI_SWAP_CHAIN_DESC scd	= { 0 };
@@ -45,31 +75,21 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 	scd.SampleDesc.Quality		= 0;
 	scd.Windowed				= TRUE;
 
-	LOG("Creating Device and Swapchain for window (%" PRIu64 ")", this->handle);
+	LOG("Creating Swapchain for window (%" PRIu64 ")", this->handle);
 
-	// Create a Device and a SwapChain (automatically here because time is rare)
-	// Debug layer might be active for testing purpose
-	// FIXME: Turn off the debug layer
-	V_RETURN(D3D11CreateDeviceAndSwapChain(
-		NULL,
-		D3D_DRIVER_TYPE_HARDWARE,
-		NULL,
-		D3D11_CREATE_DEVICE_DEBUG,
-		NULL,
-		NULL,
-		D3D11_SDK_VERSION,
+	V_RETURN(this->pIDXGIFactory->CreateSwapChain(
+		this->pDevice,
 		&scd,
-		&this->swapChain,
-		&this->device,
-		NULL,
-		&this->context
-	));
+		&this->pIDXGISwapChain)
+	);
+
+	SAFE_RELEASE(this->pIDXGIFactory);
 
 	// Get the Backbuffer from the SwapChain and plug it into the CreateRenderTargetView
 	// So that we can put our PixelShader results into it later on
 	ID3D11Texture2D *pBackBuffer;
-	V_RETURN(this->swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer));
-	V_RETURN(this->device->CreateRenderTargetView(pBackBuffer, NULL, &this->backbuffer));
+	V_RETURN(this->pIDXGISwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer));
+	V_RETURN(this->pDevice->CreateRenderTargetView(pBackBuffer, NULL, &this->pBackbuffer));
 
 	// Settings for the DepthBuffer
 	// We pull the data from the Backbuffer so that we don't need to specify everything :)
@@ -84,15 +104,15 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 
 	// Create the DepthStencilView now
 	ID3D11Texture2D *pDepthBuffer;
-	V_RETURN(this->device->CreateTexture2D(&depthBufferDesc, NULL, &pDepthBuffer));
-	V_RETURN(this->device->CreateDepthStencilView(pDepthBuffer, NULL, &this->depthBuffer));
+	V_RETURN(this->pDevice->CreateTexture2D(&depthBufferDesc, NULL, &pDepthBuffer));
+	V_RETURN(this->pDevice->CreateDepthStencilView(pDepthBuffer, NULL, &this->pDepthBuffer));
 	pDepthBuffer->Release();
 
 	LOG("Setting Rendertargets");
 
 	// Set the Backbuffer and the DepthBuffer as render targets
 	// in the output merger stage of the render pipeline
-	this->context->OMSetRenderTargets(1, &this->backbuffer, this->depthBuffer);
+	this->pContext->OMSetRenderTargets(1, &this->pBackbuffer, this->pDepthBuffer);
 
 	// specify the viewport
 	D3D11_VIEWPORT viewport = { 0 };
@@ -109,7 +129,7 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 	);
 
 	// set the viewport to the rasterizer stage
-	this->context->RSSetViewports(1, &viewport);
+	this->pContext->RSSetViewports(1, &viewport);
 
 	return hr;
 }
@@ -117,13 +137,13 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 void Renderer::ClearFrame()
 {
 	// Clear the Backbuffer and the DepthBuffer
-	this->context->ClearRenderTargetView(backbuffer, clearColor);
-	this->context->ClearDepthStencilView(depthBuffer, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+	this->pContext->ClearRenderTargetView(this->pBackbuffer, clearColor);
+	this->pContext->ClearDepthStencilView(this->pDepthBuffer, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 }
 void Renderer::PresentFrame()
 {
 	// Swap the Backbuffer with the Frontbuffer
-	this->swapChain->Present(1, 0);
+	this->pIDXGISwapChain->Present(1, 0);
 }
 
 HRESULT Renderer::CreateShaderResourceView(ID3D11Buffer** ppBuffer, UINT iNumElements, ID3D11ShaderResourceView** ppSRV)
@@ -139,7 +159,7 @@ HRESULT Renderer::CreateShaderResourceView(ID3D11Buffer** ppBuffer, UINT iNumEle
 	srvDesc.Buffer.ElementWidth = iNumElements;
 
 	// Set the ShaderResourceView
-	return device->CreateShaderResourceView(*ppBuffer, &srvDesc, ppSRV);
+	return pDevice->CreateShaderResourceView(*ppBuffer, &srvDesc, ppSRV);
 }
 HRESULT Renderer::CreateUnorderedAccessView(ID3D11Buffer** ppBuffer, UINT iNumElements, ID3D11UnorderedAccessView** ppUAV)
 {
@@ -154,7 +174,7 @@ HRESULT Renderer::CreateUnorderedAccessView(ID3D11Buffer** ppBuffer, UINT iNumEl
 	uavDesc.Buffer.NumElements = iNumElements;
 
 	// Set the UnorderedAccessView
-	return device->CreateUnorderedAccessView(*ppBuffer, &uavDesc, ppUAV);
+	return pDevice->CreateUnorderedAccessView(*ppBuffer, &uavDesc, ppUAV);
 }
 
 HRESULT Renderer::CompileShaderFromFile(const char* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
@@ -226,3 +246,41 @@ HRESULT Renderer::CompileShaderFromFile(const char* szFileName, LPCSTR szEntryPo
 
 	return S_OK;
 }
+
+void Renderer::EnumerateAdapters()
+{
+	size_t numAdapters = 0;
+	// This interface sucks. We need to iterate once to find the number of adapters
+	// because we use 'continuous memory' allocation here and thus need to make this
+	// extra iteration. Thanks Microsoft.
+	IDXGIAdapter1* pAdapter = nullptr;
+	while (this->pIDXGIFactory->EnumAdapters1(numAdapters, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+	{
+		numAdapters++;
+	}
+
+	LOG("%i graphics adapters found.", numAdapters);
+
+	// Allocate space for the adapters using typeless allocation via malloc since we can't
+	// allocate space from an interface like IDXGIAdapter1 where there are pure virtuals.
+	this->ppAdapters = static_cast<IDXGIAdapter1**>(malloc(sizeof(IDXGIAdapter1*) * numAdapters));
+
+	numAdapters = 0;
+	// Iterate again, this time put the adapters into the allocated array.
+	while (this->pIDXGIFactory->EnumAdapters1(numAdapters, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+	{
+		DXGI_ADAPTER_DESC1 desc = { 0 };
+		pAdapter->GetDesc1(&desc);
+
+		char description[MAX_PATH];
+		wcstombs(description, desc.Description, MAX_PATH);
+
+		LOG("Adapter #%i: %s", numAdapters, description);
+
+		this->ppAdapters[numAdapters] = pAdapter;
+		numAdapters++;
+	}
+
+}
+
+#pragma warning(pop)
