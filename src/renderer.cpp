@@ -12,6 +12,12 @@
 
 constexpr float clearColor[4] = { 0.0f, 0.03f, 0.06f, 1.0f };
 
+#ifdef _DEBUG
+#define RENDER_DEBUG_MODE D3D11_CREATE_DEVICE_DEBUG
+#else
+#define RENDER_DEBUG_MODE 0
+#endif
+
 Renderer::Renderer() :
 	pIDXGIFactory(nullptr),
 	ppAdapters(nullptr),
@@ -55,7 +61,7 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 		static_cast<IDXGIAdapter*>(this->ppAdapters[0]),
 		D3D_DRIVER_TYPE::D3D_DRIVER_TYPE_UNKNOWN,
 		NULL,
-		D3D11_CREATE_DEVICE_DEBUG,
+		RENDER_DEBUG_MODE,
 		NULL,
 		NULL,
 		D3D11_SDK_VERSION,

@@ -9,7 +9,11 @@
  * @param	argv contains the start arguments as a list of strings
  * @return	uint32 is the error code after execution (unused here)
  */
+#ifdef _DEBUG
 uint32 main(uint32 argc, char** argv)
+#else
+int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+#endif
 {
 	Application app;
 
