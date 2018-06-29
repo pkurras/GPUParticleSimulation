@@ -1,7 +1,7 @@
 #pragma once
 
 // EXTERNAL INCLUDES
-#include <d3d11.h>
+#include <d3d11_4.h>
 // INTERNAL INCLUDES
 #include "math/vec2.h"
 #include "types.h"
@@ -220,20 +220,25 @@ public:
 	 */
 	HRESULT CompileShaderFromFile(const char* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 
+	/**
+	 * @brief	This method enumerates the available graphics adapters.
+	 * 			An adapter is a graphics card or a software adapter,
+	 * 			that can process the API commands and render to a buffer.
+	 */
 	void EnumerateAdapters(void);
 
 protected:
 
 	uint64 handle;
 
-	IDXGIFactory1* pIDXGIFactory;
-	IDXGIAdapter1** ppAdapters;
-	IDXGIOutput** ppOutputs;
-	IDXGISwapChain* pIDXGISwapChain;
+	IDXGIFactory4* pIDXGIFactory;
+	IDXGIAdapter3** ppAdapters;
+	IDXGIOutput4** ppOutputs;
+	IDXGISwapChain3* pIDXGISwapChain;
 
-	ID3D11Device* pDevice;
-	ID3D11DeviceContext* pContext;
-	ID3D11RenderTargetView* pBackbuffer;
+	ID3D11Device5* pDevice;
+	ID3D11DeviceContext4* pContext;
+	ID3D11RenderTargetView1* pBackbuffer;
 	ID3D11DepthStencilView* pDepthBuffer;
 
 };

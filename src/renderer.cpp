@@ -1,9 +1,8 @@
 // EXTERNAL INCLUDES
 #include <cstdio>
 #include <cwchar>
-#include <d3d11.h>
 #include <d3dcompiler.h>
-#include <dxgi.h>
+#include <dxgi1_6.h>
 // INTERNAL INCLUDES
 #include "renderer.h"
 #include "types.h"
@@ -45,7 +44,7 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 	this->handle = handle;
 
 	// Create a DXGIFactory Interface so that we can create a swapchain.
-	V_RETURN(CreateDXGIFactory1(__uuidof(IDXGIFactory), (void **)&this->pIDXGIFactory));
+	V_RETURN(CreateDXGIFactory2(NULL, __uuidof(IDXGIFactory), (void **)&this->pIDXGIFactory));
 
 	this->EnumerateAdapters();
 
@@ -53,48 +52,71 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 	// Debug layer might be active for testing purpose
 	// FIXME: Turn off the debug layer
 	V_RETURN(D3D11CreateDevice(
-		this->ppAdapters[0],
+		static_cast<IDXGIAdapter*>(this->ppAdapters[0]),
 		D3D_DRIVER_TYPE::D3D_DRIVER_TYPE_UNKNOWN,
 		NULL,
 		D3D11_CREATE_DEVICE_DEBUG,
 		NULL,
 		NULL,
 		D3D11_SDK_VERSION,
-		&this->pDevice,
+		reinterpret_cast<ID3D11Device**>(&this->pDevice),
 		NULL,
-		&this->pContext
+		reinterpret_cast<ID3D11DeviceContext**>(&this->pContext)
 	));
 
-	// Settings for the SwapChain
-	DXGI_SWAP_CHAIN_DESC scd	= { 0 };
-	scd.BufferCount				= 1;
-	scd.BufferDesc.Format		= DXGI_FORMAT_R8G8B8A8_UNORM;
-	scd.BufferUsage				= DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	scd.OutputWindow			= reinterpret_cast<HWND>(this->handle);
-	scd.SampleDesc.Count		= 1;
-	scd.SampleDesc.Quality		= 0;
-	scd.Windowed				= TRUE;
+	// Make some settings for the swap chain now
+	DXGI_SWAP_CHAIN_DESC1 scd = { 0 };
+	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	scd.BufferCount = 2;
+	scd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	scd.SampleDesc.Count = 1;
+
+	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsd = { 0 };
+	fsd.RefreshRate = { 1, 60 };
+	fsd.Scaling = DXGI_MODE_SCALING::DXGI_MODE_SCALING_CENTERED;
+	fsd.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER::DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	fsd.Windowed = TRUE;
 
 	LOG("Creating Swapchain for window (%" PRIu64 ")", this->handle);
 
-	V_RETURN(this->pIDXGIFactory->CreateSwapChain(
+	// Create the swap chain for the specified window
+	V_RETURN(this->pIDXGIFactory->CreateSwapChainForHwnd(
 		this->pDevice,
+		reinterpret_cast<HWND>(this->handle),
 		&scd,
-		&this->pIDXGISwapChain)
+		&fsd,
+		nullptr,
+		reinterpret_cast<IDXGISwapChain1**>(&this->pIDXGISwapChain))
 	);
 
+	// Enable or Disable DXGI to monitor the ALT+Enter mode switch
+	// and react to it with fullscreen or windowed mode
+	V_RETURN(this->pIDXGIFactory->MakeWindowAssociation(
+		reinterpret_cast<HWND>(this->handle),
+		DXGI_MWA_NO_ALT_ENTER)
+	);
+
+	// Release the factory now (no longer needed)
 	SAFE_RELEASE(this->pIDXGIFactory);
 
 	// Get the Backbuffer from the SwapChain and plug it into the CreateRenderTargetView
 	// So that we can put our PixelShader results into it later on
-	ID3D11Texture2D *pBackBuffer;
-	V_RETURN(this->pIDXGISwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer));
-	V_RETURN(this->pDevice->CreateRenderTargetView(pBackBuffer, NULL, &this->pBackbuffer));
+	ID3D11Texture2D1 *pBackBuffer;
+	V_RETURN(this->pIDXGISwapChain->GetBuffer(
+		0,
+		__uuidof(ID3D11Texture2D),
+		(LPVOID*)&pBackBuffer)
+	);
+	V_RETURN(this->pDevice->CreateRenderTargetView(
+		pBackBuffer,
+		NULL,
+		reinterpret_cast<ID3D11RenderTargetView**>(&this->pBackbuffer))
+	);
 
 	// Settings for the DepthBuffer
 	// We pull the data from the Backbuffer so that we don't need to specify everything :)
-	D3D11_TEXTURE2D_DESC depthBufferDesc;
-	pBackBuffer->GetDesc(&depthBufferDesc);
+	D3D11_TEXTURE2D_DESC1 depthBufferDesc;
+	pBackBuffer->GetDesc1(&depthBufferDesc);
 	depthBufferDesc.BindFlags	= D3D11_BIND_DEPTH_STENCIL;
 	depthBufferDesc.Format		= DXGI_FORMAT::DXGI_FORMAT_D24_UNORM_S8_UINT;
 	depthBufferDesc.Usage		= D3D11_USAGE_DEFAULT;
@@ -103,8 +125,8 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 	pBackBuffer->Release();
 
 	// Create the DepthStencilView now
-	ID3D11Texture2D *pDepthBuffer;
-	V_RETURN(this->pDevice->CreateTexture2D(&depthBufferDesc, NULL, &pDepthBuffer));
+	ID3D11Texture2D1 *pDepthBuffer;
+	V_RETURN(this->pDevice->CreateTexture2D1(&depthBufferDesc, NULL, &pDepthBuffer));
 	V_RETURN(this->pDevice->CreateDepthStencilView(pDepthBuffer, NULL, &this->pDepthBuffer));
 	pDepthBuffer->Release();
 
@@ -112,9 +134,13 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 
 	// Set the Backbuffer and the DepthBuffer as render targets
 	// in the output merger stage of the render pipeline
-	this->pContext->OMSetRenderTargets(1, &this->pBackbuffer, this->pDepthBuffer);
+	this->pContext->OMSetRenderTargets(
+		1,
+		reinterpret_cast<ID3D11RenderTargetView**>(&this->pBackbuffer),
+		this->pDepthBuffer
+	);
 
-	// specify the viewport
+	// Specify the viewport
 	D3D11_VIEWPORT viewport = { 0 };
 	viewport.TopLeftX	= 0;
 	viewport.TopLeftY	= 0;
@@ -128,7 +154,7 @@ HRESULT Renderer::Initialize(uint64 handle, Math::Vec2 res)
 		depthBufferDesc.Height
 	);
 
-	// set the viewport to the rasterizer stage
+	// Set the viewport to the rasterizer stage
 	this->pContext->RSSetViewports(1, &viewport);
 
 	return hr;
@@ -253,8 +279,8 @@ void Renderer::EnumerateAdapters()
 	// This interface sucks. We need to iterate once to find the number of adapters
 	// because we use 'continuous memory' allocation here and thus need to make this
 	// extra iteration. Thanks Microsoft.
-	IDXGIAdapter1* pAdapter = nullptr;
-	while (this->pIDXGIFactory->EnumAdapters1(numAdapters, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+	IDXGIAdapter4* pAdapter = nullptr;
+	while (this->pIDXGIFactory->EnumAdapters1(numAdapters, reinterpret_cast<IDXGIAdapter1**>(&pAdapter)) != DXGI_ERROR_NOT_FOUND)
 	{
 		numAdapters++;
 	}
@@ -263,14 +289,14 @@ void Renderer::EnumerateAdapters()
 
 	// Allocate space for the adapters using typeless allocation via malloc since we can't
 	// allocate space from an interface like IDXGIAdapter1 where there are pure virtuals.
-	this->ppAdapters = static_cast<IDXGIAdapter1**>(malloc(sizeof(IDXGIAdapter1*) * numAdapters));
+	this->ppAdapters = static_cast<IDXGIAdapter3**>(malloc(sizeof(IDXGIAdapter1*) * numAdapters));
 
 	numAdapters = 0;
 	// Iterate again, this time put the adapters into the allocated array.
-	while (this->pIDXGIFactory->EnumAdapters1(numAdapters, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+	while (this->pIDXGIFactory->EnumAdapters1(numAdapters, reinterpret_cast<IDXGIAdapter1**>(&pAdapter)) != DXGI_ERROR_NOT_FOUND)
 	{
-		DXGI_ADAPTER_DESC1 desc = { 0 };
-		pAdapter->GetDesc1(&desc);
+		DXGI_ADAPTER_DESC3 desc = { 0 };
+		pAdapter->GetDesc3(&desc);
 
 		char description[MAX_PATH];
 		wcstombs(description, desc.Description, MAX_PATH);

@@ -13,7 +13,7 @@ uint32 main(uint32 argc, char** argv)
 {
 	Application app;
 
-	app.Init("[Patrick Kurras] GPU Particle Simulation", { 1920, 1080 });
+	app.Init("[Patrick Kurras] GPU Particle Simulation", { 1366, 768 });
 	app.Update();
 	app.Close();
 
