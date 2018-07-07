@@ -1,4 +1,4 @@
-#define THREAD_NUM_X 512
+#define THREAD_NUM_X 64
 
 // particle stucture
 struct Particle

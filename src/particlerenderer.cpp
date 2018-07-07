@@ -5,7 +5,7 @@
 #include "particlerenderer.h"
 #include "utils.h"
 
-#define THREAD_NUM_X 512
+#define THREAD_NUM_X 64
 
 ID3D11ShaderResourceView* gNullSRV = nullptr;
 ID3D11UnorderedAccessView* gNullUAV = nullptr;
@@ -133,7 +133,7 @@ HRESULT ParticleRenderer::SetupParticles()
 	V_RETURN(this->GenerateIndirectDrawIndirectBuffer<uint>(&pIndirectDrawBuffer, bufferInit));
 
 	// Update simulation constants
-	simulationData.numParticles = static_cast<uint>(this->numMaxParticles);
+	simulationData.numParticles = static_cast<uint>(this->numMaxParticles / THREAD_NUM_X);
 	simulationData.lastTimestep = 1.0f;
 	simulationData.timestep = 1.0f;
 	simulationData.gravitySource = Math::Vec2{ 0.0f, 0.0f };

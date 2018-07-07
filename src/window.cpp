@@ -130,7 +130,8 @@ void Window::Initialize(const char* title, Math::Vec2 res)
 		printf("Could not adjust size of the window.");
 
 	// Create the window now
-	this->handle = reinterpret_cast<uint64>(CreateWindowA(
+	this->handle = reinterpret_cast<uint64>(CreateWindowExA(
+		NULL,
 		wc.lpszClassName,
 		title,
 		windowStyle,
